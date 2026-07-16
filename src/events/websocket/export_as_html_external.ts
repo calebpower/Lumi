@@ -18,7 +18,7 @@ export default function event_websocket_export_as_html_external(
     const { file_path } = await dialog_export_save_as_show(
       context.translate('Export as HTML with external media files'),
       '.html',
-      ['.html']
+      ['html']
     );
 
     if (!file_path) {

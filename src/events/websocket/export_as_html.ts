@@ -18,7 +18,7 @@ export default function event_websocket_export_as_scorm(
     const { file_path } = await dialog_export_save_as_show(
       context.translate('Export as HTML'),
       '.html',
-      ['.html']
+      ['html']
     );
 
     if (!file_path) {

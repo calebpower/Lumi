@@ -17,8 +17,10 @@ import reporterTemplate from './templates/reporter';
 
 // const t = i18next.getFixedT(null, 'lumi');
 
+// Must produce the exact same filename stem as simple-scorm-packager's
+// lib/utils.js cleanAndTrim, which keeps Unicode letters and digits.
 const cleanAndTrim = (text: string): string => {
-  const textClean = text.replace(/[^a-zA-Z\d\s]/g, '');
+  const textClean = text.replace(/[^\p{L}0-9]+/gu, '');
   return textClean.replace(/\s/g, '');
 };
 
@@ -84,6 +86,18 @@ export async function exportScorm(
       );
 
       const temporaryFilename = await new Promise<string>((resolve, reject) => {
+        // simple-scorm-packager only invokes the callback on success; if
+        // archiving fails it merely logs. Guard with a timeout so the export
+        // fails loudly instead of leaving the UI spinner up forever.
+        const timeout = setTimeout(
+          () =>
+            reject(
+              new Error(
+                'SCORM packager did not finish within 10 minutes (see console for packager errors)'
+              )
+            ),
+          10 * 60 * 1000
+        );
         const opt = {
           version: '1.2',
           organization:
@@ -103,13 +117,19 @@ export async function exportScorm(
             date: new Date().toISOString().slice(0, 10)
           }
         };
-        scopackager(opt, () => {
-          resolve(
-            `${cleanAndTrim(opt.title)}_v${opt.package.version}_${
-              opt.package.date
-            }.zip`
-          );
-        });
+        try {
+          scopackager(opt, () => {
+            clearTimeout(timeout);
+            resolve(
+              `${cleanAndTrim(opt.title)}_v${opt.package.version}_${
+                opt.package.date
+              }.zip`
+            );
+          });
+        } catch (error) {
+          clearTimeout(timeout);
+          reject(error);
+        }
       });
       try {
         await fsExtra.rename(
@@ -117,7 +137,13 @@ export async function exportScorm(
           path
         );
       } catch (error: any) {
-        await fsExtra.remove(temporaryFilename);
+        context.log.error('exportScorm: could not rename packager output', {
+          from: _path.join(_path.dirname(path), temporaryFilename),
+          to: path,
+          message: error?.message
+        });
+        await fsExtra.remove(_path.join(_path.dirname(path), temporaryFilename));
+        throw error;
       }
     },
     {

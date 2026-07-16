@@ -18,7 +18,7 @@ export default function event_websocket_export_as_scorm(
     const { file_path } = await dialog_export_save_as_show(
       context.translate('Export as SCORM'),
       '.zip',
-      ['.zip']
+      ['zip']
     );
 
     if (!file_path) {
@@ -27,14 +27,30 @@ export default function event_websocket_export_as_scorm(
 
     await window_backdrop_show(context, contentId);
 
-    await content_export_as_scorm(context, contentId, file_path, options);
+    try {
+      await content_export_as_scorm(context, contentId, file_path, options);
 
-    await window_backdrop_hide(context, contentId);
-    await window_snackbar_show(
-      context,
-      contentId,
-      context.translate(`Content exported to {{file_path}}`, { file_path }),
-      'success'
-    );
+      await window_snackbar_show(
+        context,
+        contentId,
+        context.translate(`Content exported to {{file_path}}`, { file_path }),
+        'success'
+      );
+    } catch (error: any) {
+      context.log.error('events:websocket:export_as_scorm failed', {
+        message: error?.message,
+        stack: error?.stack
+      });
+      await window_snackbar_show(
+        context,
+        contentId,
+        context.translate(`Export failed: {{error}}`, {
+          error: error?.message || 'unknown error'
+        }),
+        'error'
+      );
+    } finally {
+      await window_backdrop_hide(context, contentId);
+    }
   });
 }
