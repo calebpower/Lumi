@@ -1,0 +1,31 @@
+diff --git a/node_modules/@lumieducation/h5p-html-exporter/build/HtmlExporter.js b/node_modules/@lumieducation/h5p-html-exporter/build/HtmlExporter.js
+index 2885343..784c210 100644
+--- a/node_modules/@lumieducation/h5p-html-exporter/build/HtmlExporter.js
++++ b/node_modules/@lumieducation/h5p-html-exporter/build/HtmlExporter.js
+@@ -528,7 +528,25 @@ var HtmlExporter = /** @class */ (function () {
+                         scripts = model.scripts
+                             .map(function (script) { return texts[script]; })
+                             .concat(additionalScripts);
+-                        return [2 /*return*/, uglify_js_1.default.minify(scripts, { output: { comments: 'some' } }).code];
++                        var minified = uglify_js_1.default.minify(scripts, { output: { comments: 'some' } });
++                        if (minified.error || minified.code === undefined) {
++                            // uglify-js cannot parse ES2020+ syntax used by some H5P
++                            // libraries; fall back to the unminified bundle instead of
++                            // returning undefined (which crashes the renderer with
++                            // "Cannot read properties of undefined (reading 'concat')").
++                            var offendingIndex = minified.error ? parseInt(minified.error.filename, 10) : NaN;
++                            console.error('HtmlExporter: uglify-js minification failed; using unminified script bundle.', minified.error && {
++                                message: minified.error.message,
++                                offendingScript: !isNaN(offendingIndex)
++                                    ? (model.scripts[offendingIndex] ||
++                                       'additional script #' + (offendingIndex - model.scripts.length))
++                                    : minified.error.filename,
++                                line: minified.error.line,
++                                col: minified.error.col
++                            });
++                            return [2 /*return*/, scripts.join(';\n')];
++                        }
++                        return [2 /*return*/, minified.code];
+                 }
+             });
+         });
